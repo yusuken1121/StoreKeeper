@@ -4,3 +4,6 @@ node_modules
 # environment
 .env*
 !.env.example
+
+#secret key
+secrets

@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "outDir": "build",
+    "resolveJsonModule": true,
     "esModuleInterop": true
   },
   "include": ["src/**/*"],
