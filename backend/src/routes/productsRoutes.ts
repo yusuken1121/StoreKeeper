@@ -3,4 +3,4 @@ import { createProduct } from "../controllers/productsController";
 
 export const router = Router();
 
-router.post("/products", createProduct);
+router.post("/products/:productId", createProduct);

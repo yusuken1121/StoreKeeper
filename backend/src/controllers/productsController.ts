@@ -2,24 +2,51 @@ import { Request, Response } from "express";
 import db from "../config/firebaseConfig";
 import { Product } from "../models/productModel";
 import admin from "firebase-admin";
+class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NotFoundError";
+  }
+}
 
 const docRef = db.collection("products");
+
+//For creating a new sortIndex
 const getLastSortIndex = async () => {
   let lastSortIndex = 0;
   const snapshot = await docRef.orderBy("sortIndex", "desc").limit(1).get();
   if (!snapshot.empty) {
-    lastSortIndex = snapshot.docs[0].data().sortIndex + 10000;
+    lastSortIndex = snapshot.docs[0].data().sortIndex;
   }
   return lastSortIndex;
 };
 
+const createNewSortIndex = async (productId: string) => {
+  const productSnapshot = await docRef.doc(productId).get();
+  if (!productSnapshot.exists) {
+    console.error(`No product found with id: ${productId}`);
+    throw new NotFoundError(`No product found with id: ${productId}`);
+  }
+  const productSortIndex = productSnapshot.data().sortIndex;
+  let newSortIndex;
+  let lastSortIndex = await getLastSortIndex();
+  if (productSortIndex === lastSortIndex) {
+    newSortIndex = lastSortIndex + 100000;
+  } else {
+    newSortIndex = productSortIndex + 100;
+  }
+  return newSortIndex;
+};
+
+//Post a new product
 export const createProduct = async (req: Request, res: Response) => {
+  const { productId } = req.params;
   const { category_id, warehouseArea_id, imgUrl } = req.body;
   try {
     // Timestamp
     const currentTimestamp = admin.firestore.Timestamp.now();
     // sortIndex
-    const lastSortIndex = await getLastSortIndex();
+    const newSortIndex = await createNewSortIndex(productId);
 
     const productData: Product = {
       category_id,
@@ -27,7 +54,7 @@ export const createProduct = async (req: Request, res: Response) => {
       imgUrl,
       is_discontinued: false,
       memo: "",
-      sortIndex: lastSortIndex,
+      sortIndex: newSortIndex,
       is_store_xs: false,
       is_store_s: false,
       is_store_m: false,
@@ -45,7 +72,12 @@ export const createProduct = async (req: Request, res: Response) => {
     await docRef.add(productData);
     res.status(201).json(productData);
   } catch (error) {
-    console.error("Failed to add product:", error);
-    res.status(500).json({ error: "Failed to add product." });
+    switch (true) {
+      case error.name === "NotFoundError":
+        res.status(404).json({ error: error.message });
+        break;
+      default:
+        res.status(500).json({ error: "Failed to add product." });
+    }
   }
 };
