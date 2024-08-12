@@ -11,6 +11,16 @@ class NotFoundError extends Error {
 
 const docRef = db.collection("products");
 
+//fetch a single data of the product
+const fetchSingleProduct = async (productId: string) => {
+  const productSnapshot = await docRef.doc(productId).get();
+  if (!productSnapshot.exists) {
+    console.error(`No product found with id: ${productId}`);
+    throw new NotFoundError(`No product found with id: ${productId}`);
+  }
+  return productSnapshot;
+};
+
 //For creating a new sortIndex
 const getLastSortIndex = async () => {
   let lastSortIndex = 0;
@@ -22,11 +32,7 @@ const getLastSortIndex = async () => {
 };
 
 const createNewSortIndex = async (productId: string) => {
-  const productSnapshot = await docRef.doc(productId).get();
-  if (!productSnapshot.exists) {
-    console.error(`No product found with id: ${productId}`);
-    throw new NotFoundError(`No product found with id: ${productId}`);
-  }
+  const productSnapshot = await fetchSingleProduct(productId);
   const productSortIndex = productSnapshot.data().sortIndex;
   let newSortIndex;
   let lastSortIndex = await getLastSortIndex();
@@ -71,6 +77,41 @@ export const createProduct = async (req: Request, res: Response) => {
 
     await docRef.add(productData);
     res.status(201).json(productData);
+  } catch (error) {
+    switch (true) {
+      case error.name === "NotFoundError":
+        res.status(404).json({ error: error.message });
+        break;
+      default:
+        res.status(500).json({ error: "Failed to add product." });
+    }
+  }
+};
+
+//Get the all products sorted by "sortIndex"
+export const getAllProducts = async (req: Request, res: Response) => {
+  try {
+    const productsSnapshot = await docRef.orderBy("sortIndex", "asc").get();
+    const products = productsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    res.status(200).json(products);
+  } catch (error) {
+    console.error("Failed to fetch products:", error);
+    res.status(500).json({ error: "Failed to fetch products." });
+  }
+};
+
+export const getProduct = async (req: Request, res: Response) => {
+  const { productId } = req.params;
+  try {
+    const productSnapshot = await fetchSingleProduct(productId);
+    const productData = {
+      id: productSnapshot.id,
+      ...productSnapshot.data(),
+    };
+    res.status(200).json(productData);
   } catch (error) {
     switch (true) {
       case error.name === "NotFoundError":
